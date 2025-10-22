@@ -1,0 +1,572 @@
+#libraries to help with reading and manipulating data
+import pandas as pd
+import numpy as np
+
+# libaries to help with data visualization
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Library to split data
+from sklearn.model_selection import train_test_split
+
+# Library for scaling
+from sklearn import preprocessing
+from sklearn.preprocessing import StandardScaler
+
+# Library for computing permutation feature importance
+from sklearn.inspection import permutation_importance
+
+# To build model for prediction
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.naive_bayes import GaussianNB
+from sklearn.svm import SVC
+
+
+# To get diferent metric scores
+from sklearn.metrics import (
+    f1_score,
+    accuracy_score,
+    recall_score,
+    precision_score,
+    confusion_matrix,
+    roc_auc_score,
+    precision_recall_curve,
+    roc_curve,
+)
+
+#loading the dataset
+innhotel = pd.read_csv("INNHotelsGroup.csv")
+print(innhotel)
+
+#view first 5 row of the dataset
+innhotel.head()
+
+#View the 5 last row of the dataset
+innhotel.tail()
+
+#shape of the dataset
+innhotel.shape
+
+#check the data type of the columns in the dataset
+innhotel.info()
+
+#Complete the code to checking for duplicate values
+innhotel.duplicated().sum()
+
+#droping the unique identifier column
+innhotel = innhotel.drop(["Booking_ID"], axis = 1)
+
+#checking for the unique vallue columns dropped
+innhotel.head()
+
+#statistical summary of data
+innhotel.describe()
+
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+
+# Univariate analysis: Distribution of arrival_month
+print("Value Counts for arrival_month:")
+monthly_counts = innhotel['arrival_month'].value_counts().sort_index()
+print(monthly_counts)
+
+# Calculate percentages
+monthly_percent = (monthly_counts / len(innhotel)) * 100
+print("\nPercentages:")
+print(monthly_percent.round(2))
+
+# Identify busiest months (top 3)
+busiest = monthly_percent.nlargest(3)
+print("\nBusiest Months (Top 3):")
+print(busiest)
+
+# Bar plot for visualization
+plt.figure(figsize=(10, 6))
+monthly_counts.plot(kind='bar')
+plt.title('Distribution of Hotel Bookings by Arrival Month')
+plt.xlabel('Month')
+plt.ylabel('Number of Bookings')
+plt.xticks(rotation=0)
+plt.grid(axis='y', alpha=0.3)
+plt.show()
+
+
+# For non-canceled bookings only (optional refinement)
+non_canceled_df = innhotel[innhotel['booking_status'] == 'Not_Canceled']
+monthly_non_canceled = non_canceled_df['arrival_month'].value_counts().sort_index()
+print("\nNon-Canceled Bookings per Month:")
+print(monthly_non_canceled)
+
+#Bivariate analysis
+#1. Booking Status vs. Lead Time
+
+plt.figure(figsize=(10, 6))
+sns.boxplot(x='booking_status', y='lead_time', data=innhotel, palette='Set1')
+plt.title('Lead Time Distribution by Booking Status', fontsize=14)
+plt.xlabel('Booking Status', fontsize=12)
+plt.ylabel('Lead Time (Days)', fontsize=12)
+plt.grid(axis='y', alpha=0.3)
+plt.show()
+
+#Insights & Observations: Customers booking 3+ months ahead are more prone to changes (e.g.,caused by uncertainty), which leads to revenue gaps.
+
+# 2. Booking Status vs. Market Segment Type
+
+plt.figure(figsize=(10, 6))
+sns.countplot(x='market_segment_type', hue='booking_status', data=innhotel, palette='Set1')
+plt.title('Booking Status by Market Segment Type', fontsize=14)
+plt.xlabel('Market Segment Type', fontsize=12)
+plt.ylabel('Count', fontsize=12)
+plt.legend(title='Booking Status by Market Segment')
+plt.grid(axis='y', alpha=0.3)
+plt.xticks(rotation=45)
+plt.show()
+
+#Insights & Observations: Digital channels (Online) facilitate easy cancellations, inflating rates; corporate/offline loyalty stabilizes them. 
+#Relationship highlights channel-specific risks—~50% of total cancellation comes from Online in the dataset. Individual variable: market_segment_type is imbalanced (Online ~50-60%), skewing aggregate trends.
+
+# 3.avg_price_per_room by booking_status
+
+plt.figure(figsize=(10, 6))
+sns.boxplot(x='booking_status', y='avg_price_per_room', data=innhotel, palette='Set2')
+plt.title('Average Price per Room by Booking Status', fontsize=14)
+plt.xlabel('Booking Status', fontsize=12)
+plt.ylabel('Average Price per Room (€)', fontsize=12)
+plt.grid(axis='y', alpha=0.3)
+plt.show()
+
+#Higher-priced bookings (e.g., upgraded rooms) are canceled without proportional refund costs, eroding margins.
+
+# 4. repeated_guest vs. booking_status with percentages
+crosstab = pd.crosstab(innhotel['repeated_guest'], innhotel['booking_status'], normalize='index') * 100
+
+# Display the crosstab
+print("\nCrosstab: Booking Status by Repeated Guest (%):")
+print(crosstab)
+
+# Visualize the crosstab as a heatmap
+plt.figure(figsize=(8, 5))
+sns.heatmap(crosstab, annot=True, cmap='Blues', fmt='.2f', cbar_kws={'label': 'Percentage (%)'})
+plt.title('Booking Status by Repeated Guest (%)', fontsize=14)
+plt.xlabel('Booking Status', fontsize=12)
+plt.ylabel('Repeated Guest (0: No, 1: Yes)', fontsize=12)
+plt.show()
+
+#Loyalty buffers cancellations—repeats build commitment via familiarity. Strong protective relationship; incentivize repeats (e.g., via perks) to cut ~20% of risks.
+
+# 5.Numerical Variables: Correlation Matrix
+
+# Encode booking_status (0: Not_Canceled, 1: Canceled)
+innhotel['booking_status_encoded'] = innhotel['booking_status'].map({'Not_Canceled': 0, 'Canceled': 1})
+
+# Select numerical variables for correlation matrix
+numerical_vars = ['lead_time', 'avg_price_per_room', 'no_of_special_requests', 'booking_status_encoded']
+correlation_matrix = innhotel[numerical_vars].corr()
+
+# Create a heatmap for the 4x4 correlation matrix
+plt.figure(figsize=(8, 6))
+sns.heatmap(correlation_matrix, annot=True, cmap='Reds', vmin=-1, vmax=1, square=True, fmt='.2f')
+plt.title('Correlation Matrix of Numerical Variables', fontsize=14)
+plt.show()
+
+#Insights & Observations: Multi-variable ties reveal behavioral clusters—high lead time + low requests = high risk.
+
+#EDA ANSWERS
+#1. Overall, the busiest month period is july to October, which account for ~60-70% of annual bookings. 
+#2. The Online TA (Travel Agent) segment is the largest, accounting for the majority of guests.
+#3. Room prices vary across market segments, with Online TA and Groups typically commanding higher average prices per room (~100-110), while Corporate and Direct segments have lower averages (~80-90). Offline TA falls in between (~90-100).
+#4. Approximately 37% of bookings are canceled.
+
+#Data Processing
+# Check for missing values
+missing_values = innhotel.isna().sum()
+print("Missing Values per Column:")
+print(missing_values)
+print("\nPercentage of Missing Values:")
+print((missing_values / len(innhotel) * 100).round(2))
+
+#Observation: The dataset has no missing values.
+
+#Train & split data
+import pandas as pd
+from sklearn.model_selection import train_test_split
+import io 
+
+
+innhotel['booking_status_encoded'] = innhotel['booking_status'].map({'Not_Canceled': 0, 'Canceled': 1})
+
+# Select features
+feature_cols = ['no_of_adults', 'no_of_children', 'no_of_weekend_nights', 'no_of_week_nights', 
+                'required_car_parking_space', 'lead_time', 'arrival_year', 'arrival_month', 
+                'arrival_date', 'repeated_guest', 'no_of_previous_cancellations', 
+                'no_of_previous_bookings_not_canceled', 'avg_price_per_room', 'no_of_special_requests']
+X = innhotel[feature_cols]
+y = innhotel['booking_status_encoded']
+
+# Split
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+
+# Verify
+print("Train set shape:", X_train.shape)
+print("Test set shape:", X_test.shape)
+print("\nTrain class distribution:\n", y_train.value_counts(normalize=True).round(3))
+print("Test class distribution:\n", y_test.value_counts(normalize=True).round(3))
+
+#observationas:
+#Train Set Shape: (29,020 rows, 14 features) – ~80% of data.
+#Test Set Shape: (7,255 rows, 14 features) – ~20% of data.
+#Class Distribution (proportions, rounded to 3 decimals):
+#Train: Not_Canceled (0): 0.672, Canceled (1): 0.328
+#Test: Not_Canceled (0): 0.672, Canceled (1): 0.328 (stratified balance maintained; full data ~0.672/0.328)
+#Rationale
+#Test Size (0.2): 20% for testing provides ~7,255 samples (from ~36,275 total), sufficient for reliable evaluation without underutilizing data for training (~29,020 samples).
+#Stratification (stratify=y): Ensures balanced class distribution in both sets, matching the overall ~37% cancellation rate (63% Not_Canceled). This prevents bias in imbalanced classes.
+#Random State (42): Ensures reproducibility across runs.
+
+#KNN Model Building
+#Three models are:
+#KNN Classifier: Distance-based, sensitive to scaling, good for non-linear patterns.
+#Naive Bayes (Gaussian): Probabilistic, assumes feature independence, robust to imbalanced data.
+#SVM Classifier: Linear kernel for computational efficiency, effective for high-dimensional data but sensitive to scaling.
+
+from sklearn.model_selection import GridSearchCV
+
+# Hyperparameter tuning for KNN
+param_grid = {'n_neighbors': [3, 5, 7, 10], 'weights': ['uniform', 'distance']}
+grid_search = GridSearchCV(KNeighborsClassifier(), param_grid, cv=5, scoring='precision')
+grid_search.fit(X_train_scaled, y_train)
+print("Best parameters:", grid_search.best_params_)
+print("Best precision:", grid_search.best_score_)
+
+# Train best model
+best_knn = grid_search.best_estimator_
+y_pred = best_knn.predict(X_test_scaled)
+y_proba = best_knn.predict_proba(X_test_scaled)[:, 1]
+print("\nClassification Report for Tuned KNN:")
+print(classification_report(y_test, y_pred, target_names=['Not_Canceled', 'Canceled']))
+
+#Performance Analysis:
+#Precision (Canceled): 0.85 (85% of predicted cancellations are correct, moderate performance).
+#Recall (Canceled): 0.65 (65% of actual cancellations are identified, missing less than half).
+#F1-Score (Canceled): 0.73 (balanced, reflecting high precision-recall trade-off).
+
+#Model Building
+#Naive bayes
+# Add one-hot encoding for categorical features
+df_encoded = pd.get_dummies(df, columns=['market_segment_type', 'type_of_meal_plan', 'room_type_reserved'], drop_first=True)
+feature_cols_encoded = [col for col in df_encoded.columns if col not in ['booking_status', 'booking_status_encoded']]
+X_encoded = df_encoded[feature_cols_encoded]
+y = df_encoded['booking_status_encoded']
+
+# Train-test split and scale
+X_train, X_test, y_train, y_test = train_test_split(X_encoded, y, test_size=0.2, random_state=42, stratify=y)
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+# Train and evaluate Naive Bayes
+nb = GaussianNB()
+nb.fit(X_train_scaled, y_train)
+y_pred = nb.predict(X_test_scaled)
+y_proba = nb.predict_proba(X_test_scaled)[:, 1]
+print("\nClassification Report for Naive Bayes (with categoricals):")
+print(classification_report(y_test, y_pred, target_names=['Not_Canceled', 'Canceled']))
+
+
+#Performance Analysis:
+#Precision (Canceled): 0.35 (35% of predicted cancellations are correct, low for business needss).
+#Recall (Canceled): 0.96 (96% of actual cancellations are identified,  better than SVM’s ).
+#F1-Score (Canceled): 0.51 (moderate, reflecting nornal precision-recall trade-off).
+
+#Model Building
+#svm
+from sklearn.model_selection import GridSearchCV
+
+# Hyperparameter tuning for SVM
+param_grid = {'C': [0.1, 1.0, 10.0], 'kernel': ['linear']}
+grid_search = GridSearchCV(SVC(probability=True, random_state=42, max_iter=1000), param_grid, cv=5, scoring='precision')
+grid_search.fit(X_train_scaled, y_train)
+print("Best parameters:", grid_search.best_params_)
+print("Best precision:", grid_search.best_score_)
+
+# Train best model
+best_svm = grid_search.best_estimator_
+y_pred = best_svm.predict(X_test_scaled)
+y_proba = best_svm.predict_proba(X_test_scaled)[:, 1]
+print("\nClassification Report for Tuned SVM:")
+print(classification_report(y_test, y_pred, target_names=['Not_Canceled', 'Canceled']))
+
+#Performance Analysis:
+#Precision (Canceled): 0.28 (28% of predicted cancellations are correct, moderate performance).
+#Recall (Canceled): 0.67 (67% of actual cancellations are identified, missing less than half).
+#F1-Score (Canceled): 0.39 (39% low, reflecting low precision-recall trade-off).
+#Current Model: With precision ~0.28 and recall ~0.67 on the sample, the SVM model is not reliable for production. 
+#It predicts cancellations with low confidence (high false positives) and misses most actual cancellations, failing to protect revenue or optimize policies.
+
+#Business Fit: Low precision (0.28) means more than half of predicted cancellations are false positives, risking unnecessary policies (e.g., deposits for non-risky bookings).
+#High recall (0.67)would not miss most cancellations, which improves revenue. The model is less suitable for production in its current state.
+
+#Model Improvement KNN
+from sklearn.model_selection import GridSearchCV
+
+# Define parameter grid
+param_grid = {
+    'n_neighbors': [3, 5, 7, 10],
+    'weights': ['uniform', 'distance']
+}
+
+# Initialize KNN and GridSearchCV
+knn = KNeighborsClassifier()
+grid_search = GridSearchCV(knn, param_grid, cv=5, scoring='precision', n_jobs=-1)
+grid_search.fit(X_train_scaled, y_train)
+
+# Best model
+best_knn = grid_search.best_estimator_
+print("Best parameters:", grid_search.best_params_)
+print("Best cross-validated precision:", grid_search.best_score_.round(3))
+
+# Train best model
+best_knn.fit(X_train_scaled, y_train)
+
+# Predict
+y_pred = best_knn.predict(X_test_scaled)
+y_proba = best_knn.predict_proba(X_test_scaled)[:, 1]
+
+# Calculate metrics
+precision = precision_score(y_test, y_pred, pos_label=1)
+recall = recall_score(y_test, y_pred, pos_label=1)
+f1 = f1_score(y_test, y_pred, pos_label=1)
+roc_auc = roc_auc_score(y_test, y_proba)
+accuracy = accuracy_score(y_test, y_pred)
+
+# Print classification report
+print("\nClassification Report for Tuned KNN:")
+print(classification_report(y_test, y_pred, target_names=['Not_Canceled', 'Canceled']))
+#KNN achieve precision ~0.83, suitable for targeting high-risk bookings (e.g., long lead_time, Online TA) with policies like non-refunded deposits.
+
+#Model improvement naive bayes
+from sklearn.model_selection import cross_val_score, GridSearchCV
+
+# Gaussian Naive Bayes tuning
+gnb_param_grid = {'var_smoothing': [1e-9, 1e-8, 1e-7]}
+gnb = GaussianNB()
+gnb_grid = GridSearchCV(gnb, gnb_param_grid, cv=5, scoring='precision', n_jobs=-1)
+gnb_grid.fit(X_train_scaled, y_train)
+print("Best Gaussian NB parameters:", gnb_grid.best_params_)
+print("Best Gaussian NB cross-validated precision:", gnb_grid.best_score_.round(3))
+
+# Complement Naive Bayes tuning
+cnb_param_grid = {'alpha': [0.1, 1.0, 10.0]}
+cnb = ComplementNB()
+cnb_grid = GridSearchCV(cnb, cnb_param_grid, cv=5, scoring='precision', n_jobs=-1)
+cnb_grid.fit(X_train_discretized, y_train)
+print("Best Complement NB parameters:", cnb_grid.best_params_)
+print("Best Complement NB cross-validated precision:", cnb_grid.best_score_.round(3))
+
+# Hybrid Voting Classifier
+voting_clf = VotingClassifier(
+    estimators=[
+        ('gnb', gnb_grid.best_estimator_),
+        ('cnb', cnb_grid.best_estimator_)
+    ],
+    voting='soft'
+)
+voting_clf.fit(X_train_scaled, y_train)  # Use scaled data for simplicity (Complement NB handles discretized internally)
+y_pred = voting_clf.predict(X_test_scaled)
+y_proba = voting_clf.predict_proba(X_test_scaled)[:, 1]
+
+# Calculate metrics
+precision = precision_score(y_test, y_pred, pos_label=1)
+recall = recall_score(y_test, y_pred, pos_label=1)
+f1 = f1_score(y_test, y_pred, pos_label=1)
+roc_auc = roc_auc_score(y_test, y_proba)
+accuracy = accuracy_score(y_test, y_pred)
+
+# Print classification report
+print("\nClassification Report for Hybrid Naive Bayes:")
+print(classification_report(y_test, y_pred, target_names=['Not_Canceled', 'Canceled']))
+
+# Print metrics
+metrics = {
+    'Model': 'Hybrid Naive Bayes',
+    'Precision (Canceled)': precision,
+    'Recall (Canceled)': recall,
+    'F1-Score (Canceled)': f1,
+    'ROC-AUC': roc_auc,
+    'Accuracy': accuracy
+}
+metrics_df = pd.DataFrame([metrics])
+print("\nModel Performance Summary:")
+print(metrics_df.round(3))
+
+#cancel this already done above.
+#Model improvement - naive bayes
+
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler, KBinsDiscretizer
+from sklearn.naive_bayes import GaussianNB, ComplementNB
+from sklearn.ensemble import RandomForestClassifier, VotingClassifier
+from sklearn.metrics import precision_score, recall_score, f1_score, roc_auc_score, accuracy_score, classification_report
+import io
+
+# Encode target
+if 'booking_status' not in df.columns:
+    raise KeyError("Error: 'booking_status' column not found in the dataset.")
+df['booking_status_encoded'] = df['booking_status'].map({'Not_Canceled': 0, 'Canceled': 1})
+
+# Verify encoding
+if df['booking_status_encoded'].isna().sum() > 0:
+    print(f"Warning: {df['booking_status_encoded'].isna().sum()} NaN values in booking_status_encoded.")
+    print("Unique values in booking_status:", df['booking_status'].unique())
+
+# Feature engineering: Add total_stay_days
+df['total_stay_days'] = df['no_of_weekend_nights'] + df['no_of_week_nights']
+
+# Log transform skewed features
+for col in ['lead_time', 'avg_price_per_room']:
+    df[col] = np.log1p(df[col])  # log1p to handle zeros
+
+# Select subset of features
+selected_features = ['lead_time', 'avg_price_per_room', 'no_of_special_requests', 'total_stay_days', 
+                    'market_segment_type', 'type_of_meal_plan']
+df_subset = df[selected_features + ['booking_status_encoded']]
+
+# One-hot encode categorical features
+df_encoded = pd.get_dummies(df_subset, columns=['market_segment_type', 'type_of_meal_plan'], drop_first=True)
+
+# Select features
+feature_cols = [col for col in df_encoded.columns if col != 'booking_status_encoded']
+if not all(col in df_encoded.columns for col in feature_cols):
+    raise KeyError("Error: One or more feature columns missing in the dataset.")
+X = df_encoded[feature_cols]
+y = df_encoded['booking_status_encoded']
+
+# Handle outliers (capping after log transform)
+for col in ['lead_time', 'avg_price_per_room']:
+    Q1 = df_encoded[col].quantile(0.25)
+    Q3 = df_encoded[col].quantile(0.75)
+    IQR = Q3 - Q1
+    upper = Q3 + 1.5 * IQR
+    lower = Q1 - 1.5 * IQR if col == 'avg_price_per_room' else 0
+    df_encoded[col] = df_encoded[col].clip(lower=lower, upper=upper)
+
+# Train-test split
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+
+# Scale features for Gaussian NB
+try:
+    scaler = StandardScaler()
+    X_train_scaled = scaler.fit_transform(X_train)
+    X_test_scaled = scaler.transform(X_test)
+except Exception as e:
+    print(f"Error during scaling: {e}")
+    raise
+
+# Discretize features for Complement NB
+discretizer = KBinsDiscretizer(n_bins=5, encode='ordinal', strategy='quantile')
+X_train_discretized = discretizer.fit_transform(X_train)
+X_test_discretized = discretizer.transform(X_test)
+
+# Verify data
+print("Train set shape:", X_train_scaled.shape)
+print("Test set shape:", X_test_scaled.shape)
+print("Train class distribution:", pd.Series(y_train).value_counts(normalize=True).round(3))
+print("Test class distribution:", pd.Series(y_test).value_counts(normalize=True).round(3))
+
+#svm model improvement
+
+from sklearn.model_selection import GridSearchCV
+
+# Define parameter grid
+param_grid = [
+    {
+        'kernel': ['rbf'],
+        'C': [0.01, 0.1, 1.0, 10.0, 100.0],
+        'gamma': ['scale', 'auto', 0.01, 0.1],
+        'class_weight': ['balanced']
+    },
+    {
+        'kernel': ['poly'],
+        'C': [0.01, 0.1, 1.0, 10.0, 100.0],
+        'degree': [2, 3],
+        'gamma': ['scale', 'auto'],
+        'class_weight': ['balanced']
+    }
+]
+
+# Initialize SVM and GridSearchCV
+svm = SVC(probability=True, random_state=42, max_iter=1000)
+grid_search = GridSearchCV(svm, param_grid, cv=5, scoring='precision', n_jobs=-1)
+grid_search.fit(X_train_scaled, y_train)
+
+# Best model
+best_svm = grid_search.best_estimator_
+print("Best parameters:", grid_search.best_params_)
+print("Best cross-validated precision:", grid_search.best_score_.round(3))
+
+# Train best model
+best_svm.fit(X_train_scaled, y_train)
+
+# Predict
+y_pred = best_svm.predict(X_test_scaled)
+y_proba = best_svm.predict_proba(X_test_scaled)[:, 1]
+
+# Calculate metrics
+precision = precision_score(y_test, y_pred, pos_label=1)
+recall = recall_score(y_test, y_pred, pos_label=1)
+f1 = f1_score(y_test, y_pred, pos_label=1)
+roc_auc = roc_auc_score(y_test, y_proba)
+accuracy = accuracy_score(y_test, y_pred)
+
+# Print classification report
+print("\nClassification Report for Tuned SVM:")
+print(classification_report(y_test, y_pred, target_names=['Not_Canceled', 'Canceled']))
+
+# Print metrics
+metrics = {
+    'Model': 'Tuned SVM',
+    'Precision (Canceled)': precision,
+    'Recall (Canceled)': recall,
+    'F1-Score (Canceled)': f1,
+    'ROC-AUC': roc_auc,
+    'Accuracy': accuracy
+}
+metrics_df = pd.DataFrame([metrics])
+print("\nModel Performance Summary:")
+print(metrics_df.round(3))
+
+#Performance Analysis:
+#Precision (Canceled): 0.38 (38% of predicted cancellations are correct, a very low performance).
+#Recall (Canceled): 0.41 (42% of actual cancellations are identified, missing more than half).
+#F1-Score (Canceled): 0.39 (40% low, reflecting low precision-recall trade-off).
+#ROC -AUC : 0.469 (46%)
+#Accuracy: 0.588 (58%)
+
+# Final Model Chosen: KNN 
+
+
+#precision(0.83): ensuring few false positives.
+#Recall(0.78): highest among models, capturing more cancellation, critical for revenue protection.
+#F1-Score(80%): highest, indicating the best balance between precision and recall.
+#ROC-AUC (93%): highest, showing superior discrimination ability across thresholds.
+#Accuracy(87%): highest than the other models.
+
+#Performance Analysis: KNN
+#Precision (Canceled): 0.83 (83% of predicted cancellations are correct, a high performance).
+#Recall (Canceled): 0.78 (78% of actual cancellations are identified, missing less than half).
+#F1-Score (Canceled): 0.80 (80% hgh, reflecting high precision-recall trade-off).
+#ROC -AUC : 0.931 (93%)
+#Accuracy: 0.874 (87%)
+
+#Performance Analysis: SVM
+#Precision (Canceled): 0.38 (38% of predicted cancellations are correct, a very low performance).
+#Recall (Canceled): 0.42 (42% of actual cancellations are identified, missing more than half).
+#F1-Score (Canceled): 0.40 (40% low, reflecting low precision-recall trade-off).
+#ROC -AUC : 0.469 (46%)
+#Accuracy: 0.588 (58%)
+
+warnings.filterwarnings("ignore")
